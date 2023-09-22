@@ -1,0 +1,36 @@
+local JSON = require("luci.jsonc")
+local utils = require('lime.utils')
+
+local hostname = utils.hostname()
+local ifaceip = {}
+
+function get_interface_ip(ifname)
+	if ifaceip[ifname] == nil then
+		ifaceip[ifname] = string.gsub(utils.unsafe_shell("ip -6 address show " ..ifname.." | awk '{if ($1 == \"inet6\") print $2}' | grep fe80 | awk -F/ '{print $1}'"), "\n", "")
+	end
+	return ifaceip[ifname]
+end
+
+function get_neighbours()
+	local routers = {}
+	local clients = {}
+	local lines = utils.unsafe_shell("ping -i 0.1 -c 2 ff02::2%br-lan 2> /dev/null | awk '{if ($3 == \"from\") print substr($4, 1, length($4)-1)}'| sort -u -r")
+	for line in string.gmatch(lines,'[^\r\n]+') do
+		local ip_if = utils.split(line,"%%")
+		local src_ip=get_interface_ip(ip_if[2])
+		if src_ip~=ip_if[1] then
+			table.insert(routers,{dst_ip=ip_if[1],iface=ip_if[2],src_ip=src_ip})
+		end
+	end
+	local clientslines = utils.unsafe_shell("ping -i 0.1 -c 2 ff02::1%br-lan 2> /dev/null | awk '{if ($3 == \"from\") print substr($4, 1, length($4)-1)}'| sort -u -r ")
+	for clientline in string.gmatch(clientslines,'[^\r\n]+') do
+		ip_if = utils.split(clientline,"%%")
+		if  not string.find(lines,ip_if[1]) then
+			table.insert(clients,{dst_ip=ip_if[1],iface=ip_if[2],src_ip=get_interface_ip(ip_if[2])})
+		end
+	end
+	return {routers=routers,clients=clients}
+end
+
+local result = { [hostname] = get_neighbours()}
+io.popen("shared-state insert ipv6_links_info", "w"):write(JSON.stringify(result))

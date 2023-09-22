@@ -17,7 +17,7 @@ define Package/$(PKG_NAME)
 endef
 
 define Package/$(PKG_NAME)/description
-	Syncronize ethenernet links information beween nodes.
+	Syncronize ipv6 links information beween nodes.
 endef
 
 $(eval $(call BuildPackage,$(PKG_NAME)))

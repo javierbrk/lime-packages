@@ -1,0 +1,4 @@
+# Ignore everything in this directory it is just essential to store cloud images¿
+*
+# Except this file
+!.gitignore

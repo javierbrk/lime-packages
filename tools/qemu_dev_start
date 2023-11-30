@@ -215,8 +215,11 @@ if [ -n "$_arg_enable_wan" ]; then
         ip link set "$WAN_IFC" up
     fi
 
+
     # DHCP server for WAN ifc
+	service systemd-resolved stop
     dnsmasq -F 172.99.0.100,172.99.0.100 --dhcp-option=3,172.99.0.1 -i "$WAN_IFC" --dhcp-authoritative --log-dhcp
+	service systemd-resolved start
 
     # enable forwarding and NAT
     echo 1 > /proc/sys/net/ipv4/ip_forward

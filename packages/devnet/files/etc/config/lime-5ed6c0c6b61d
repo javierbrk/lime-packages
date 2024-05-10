@@ -1,0 +1,6 @@
+config lime system
+        option hostname 'falsorouter-kone'
+
+config generic_uci_config location_coord
+	list uci_set 'location.settings.node_latitude=-31.83469'
+	list uci_set 'location.settings.node_longitude=-64.41885'

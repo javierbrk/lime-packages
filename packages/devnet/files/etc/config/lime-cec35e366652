@@ -1,0 +1,6 @@
+config lime system
+        option hostname 'badradio'
+
+config generic_uci_config location_coord
+	list uci_set 'location.settings.node_latitude=-31.8019512'
+	list uci_set 'location.settings.node_longitude=-64.4228178'

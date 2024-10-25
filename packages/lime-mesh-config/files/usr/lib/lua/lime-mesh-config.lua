@@ -18,7 +18,7 @@ local mesh_config = {
     config_states = {
         DEFAULT = "DEFAULT", -- When no config has changed
         WORKING = "WORKING", -- when a user starts changing the config
-        READY_FOR_APLY = "READY_FOR_UPGRADE", -- the config is set in the node and is ready to reboot 
+        READY_FOR_APLY = "READY_FOR_APLY", -- the config is set in the node and is ready to reboot 
         RESTART_SCHEDULED = "RESTART_SCHEDULED", -- the node will reboot in xx seconds 
         CONFIRMATION_PENDING = "CONFIRMATION_PENDING", -- the node rebooted and the configuration is not confirmed 
         CONFIRMED = "CONFIRMED", -- the configuration has been set and the user was able to confirm the change
@@ -86,19 +86,24 @@ function mesh_config.get_comunity_config(start_new_transaction)
     return mesh_config.generate_escaped_text(filecontent)
 end
 
+function mesh_config.get_new_comunity_config()
+    local filecontent = utils.read_file(mesh_config.new_lime_community_path)
+    return mesh_config.generate_escaped_text(filecontent)
+end
+
 -- ! Read status from UCI or load defuautl inicialization from code
 function mesh_config.get_node_status()
     local uci = config.get_uci_cursor()
     local config_data = {}
-    config_data.lime_config = uci:get('mesh-config', 'main', 'lime-config') -- only main node will show the config being distributed until confirmation or error 
-    config_data.config_state = mesh_config.state()
+    config_data.lime_config = uci:get('mesh-config', 'main', 'lime_config') -- only main node will show the config being distributed until confirmation or error 
+    config_data.transaction_state = mesh_config.state()
     local safe_reboot_pid = tonumber(utils.unsafe_shell("cat /tmp/run/safe-reboot.pid 2>/dev/null"))
-    if (config_data.config_state == mesh_config.config_states.RESTART_SCHEDULED_SCHEDULED) then
-         if (safe_reboot_pid and safe_reboot_pid > 1) then
-             mesh_config.change_state(mesh_config.config_states.CONFIRMATION_PENDING)
-         end
+    if (config_data.transaction_state == mesh_config.config_states.RESTART_SCHEDULED_SCHEDULED) then
+        if (safe_reboot_pid and safe_reboot_pid > 1) then
+            mesh_config.change_state(mesh_config.config_states.CONFIRMATION_PENDING)
+        end
     end
-    config_data.config_state = uci:get('mesh-config', 'main', 'transaction_state')
+    config_data.transaction_state = uci:get('mesh-config', 'main', 'transaction_state')
     config_data.error = uci:get('mesh-config', 'main', 'error')
 
     config_data.retry_count = tonumber(uci:get('mesh-config', 'main', 'retry_count'))
@@ -120,22 +125,21 @@ function mesh_config.get_node_status()
     config_data.new_config_hash = mesh_config.get_new_config_hash()
     config_data.node_ip = uci:get("network", "lan", "ipaddr")
     config_data.safe_restart_remining = (mesh_config.safe_restart_start_time_out -
-                                                 (utils.uptime_s() - mesh_config.safe_restart_start_mark) > 0 and
-                                                 mesh_config.safe_restart_start_time_out -
-                                                 (utils.uptime_s() - mesh_config.safe_restart_start_mark) or -1)
+                                            (utils.uptime_s() - mesh_config.safe_restart_start_mark) > 0 and
+                                            mesh_config.safe_restart_start_time_out -
+                                            (utils.uptime_s() - mesh_config.safe_restart_start_mark) or -1)
     config_data.confirm_remining = safe_reboot_pid
     return config_data
 end
 
 function mesh_config.set_new_comunity_config(new_comunity_file)
     utils.write_file(mesh_config.new_lime_community_path, mesh_config.generate_original_text(new_comunity_file))
-    -- perform aditional checks
 end
 
 -- Function that check if tihs node have all things needed to became a main node
 -- Then, call update shared state with the proper info
 -- @new_comunity_file new file to be shared as escaped text file
-function mesh_config.become_main_node(new_comunity_file)
+function mesh_config.start_config_transaction(new_comunity_file)
     if not new_comunity_file then
         if not utils.file_exists(mesh_config.new_lime_community_path) then
             return {
@@ -152,8 +156,7 @@ function mesh_config.become_main_node(new_comunity_file)
         mesh_config.change_state(mesh_config.config_states.READY_FOR_APLY)) then
         local uci = config.get_uci_cursor()
         -- only main node will show the config being distributed until confirmation or error 
-        uci:set('mesh-config', 'main', 'lime-config',
-            mesh_config.generate_escaped_text(mesh_config.new_lime_community_path))
+        uci:set('mesh-config', 'main', 'lime_config', mesh_config.get_new_comunity_config())
         uci:set('mesh-config', 'main', 'timestamp', os.time())
         uci:save('mesh-config')
         uci:commit('mesh-config')
@@ -248,7 +251,6 @@ function mesh_config.report_error(error)
     mesh_config.change_state(mesh_config.config_states.ERROR)
 end
 
-
 -- Validate if the config has already started
 function mesh_config.started()
     local status = mesh_config.state()
@@ -309,6 +311,8 @@ end
 function mesh_config.trigger_sheredstate_publish()
     utils.execute_daemonized(
         "/usr/share/shared-state/publishers/shared-state-publish_mesh_config && shared-state-async sync mesh_config")
+    utils.execute_daemonized(
+        "sleep 27;/usr/share/shared-state/publishers/shared-state-publish_mesh_config && shared-state-async sync mesh_config")
 end
 
 function mesh_config.change_main_node_state(newstate)
@@ -368,19 +372,22 @@ end
 -- It will only fetch new information if main node has aborted or main node is
 -- ready for upgraade. Called by a shared state hook
 function mesh_config.become_bot_node(main_node_upgrade_data)
+    local function registrar(texto)
+        utils.unsafe_shell('logger -p daemon.info -t "async: mesh_config" "' .. texto .. '" ')
+    end
     local actual_state = mesh_config.get_node_status()
     -- only abort if my main node has aborted
-    if main_node_upgrade_data.transaction_state == mesh_config.config_states.ABORTED and main_node_upgrade_data.timestamp ==
-        actual_state.timestamp then
-        utils.log("main node has aborted")
+    if main_node_upgrade_data.transaction_state == mesh_config.config_states.ABORTED and
+        main_node_upgrade_data.timestamp == actual_state.timestamp then
+        registrar("main node has aborted")
         mesh_config.abort()
         return
     elseif main_node_upgrade_data.transaction_state == mesh_config.config_states.READY_FOR_APLY then
         if mesh_config.started() then
-            utils.log("node has already started")
+            registrar("node has already started")
             return
         else
-            utils.log("node has not started")
+            registrar("node has not started")
 
             if actual_state.timestamp == main_node_upgrade_data.timestamp and actual_state.new_config_hash ==
                 main_node_upgrade_data.new_config_hash then
@@ -389,10 +396,18 @@ function mesh_config.become_bot_node(main_node_upgrade_data)
                 main_node_upgrade_data.retry_count = 0
             end
             if main_node_upgrade_data.retry_count < mesh_config.max_retry_conunt then
-                utils.log("seting upgrade info")
+                registrar("seting upgrade info")
                 if (mesh_config.set_mesh_config_info(main_node_upgrade_data, mesh_config.config_states.WORKING)) then
 
                     mesh_config.set_new_comunity_config(main_node_upgrade_data.lime_config)
+                    if not (mesh_config.get_new_config_hash() == main_node_upgrade_data.new_config_hash) then
+                        registrar("seting upgrade info")
+                        mesh_config.abort()
+                        return {
+                            code = "NEW CONFIG FILE HASH FAILS",
+                            error = "The hash of the new config file does not match the provided by main node"
+                        }
+                    end
 
                     if (mesh_config.change_main_node_state(mesh_config.main_node_states.NO) and
                         mesh_config.change_state(mesh_config.config_states.READY_FOR_APLY)) then
@@ -405,35 +420,35 @@ function mesh_config.become_bot_node(main_node_upgrade_data)
                     end
                 end
             else
-                utils.log("max retry_count has been reached")
+                registrar("max retry_count has been reached")
             end
         end
     end
-    utils.log("Main node is not ready for upgrade")
+    registrar("Main node is not ready for new config")
 
 end
 
 -- set download information for the new firmware from main node
 function mesh_config.set_mesh_config_info(upgrade_data, transaction_state)
     local uci = config.get_uci_cursor()
-    if string.match(upgrade_data.repo_url, "https?://[%w-_%.%?%.:/%+=&]+") ~= nil -- todo (javi): perform aditional checks
-    then
-        if (mesh_config.change_state(transaction_state)) then
-            uci:set('mesh-config', 'main', "mesh_config")
-            uci:set('mesh-config', 'main', 'new_config_hash', upgrade_data.new_config_hash)
-            uci:set('mesh-config', 'main', 'safe_restart_start_time_out', upgrade_data.safe_restart_start_time_out)
-            -- timestamp is used as id ... every node must have the same one
-            uci:set('mesh-config', 'main', 'timestamp', upgrade_data.timestamp)
-            uci:set('mesh-config', 'main', 'retry_count', upgrade_data.retry_count)
-            uci:save('mesh-config')
-            uci:commit('mesh-config')
-            return true
-        else
-            return false
-        end
+    -- todo (javi): perform aditional checks
+    -- then
+    if (mesh_config.change_state(transaction_state)) then
+        uci:set('mesh-config', 'main', "mesh_config")
+        uci:set('mesh-config', 'main', 'new_config_hash', upgrade_data.new_config_hash)
+        uci:set('mesh-config', 'main', 'safe_restart_start_time_out', upgrade_data.safe_restart_start_time_out)
+        -- timestamp is used as id ... every node must have the same one
+        uci:set('mesh-config', 'main', 'timestamp', upgrade_data.timestamp)
+        uci:set('mesh-config', 'main', 'retry_count', upgrade_data.retry_count)
+        uci:save('mesh-config')
+        uci:commit('mesh-config')
+        return true
     else
         return false
     end
+    -- else
+    --     return false
+    -- end
 end
 
 function mesh_config.toboolean(str)
@@ -449,22 +464,22 @@ function mesh_config.start_safe_reboot(su_start_delay, su_confirm_timeout)
     mesh_config.safe_restart_start_time_out = su_start_delay or status.safe_restart_start_time_out
     mesh_config.safe_restart_confirm_timeout = su_confirm_timeout or status.safe_restart_confirm_timeout
 
-    if mesh_config.check_safereboot_is_working() then
+    if not mesh_config.check_safereboot_is_working() then
         mesh_config.report_error(mesh_config.errors.SAFE_REBOOT_ERROR)
-            return {
-                code = "NOT_ABLE_TO_SAFE_REBOOT",
-                error = "safereboot is not working"
-            }
+        return {
+            code = "NOT_ABLE_TO_SAFE_REBOOT",
+            error = "safereboot is not working"
+        }
 
     end
     if mesh_config.state() == mesh_config.config_states.READY_FOR_APLY then
         if utils.file_exists(mesh_config.new_lime_community_path) then
 
             utils.unsafe_shell("tar -czf /overlay/upper/.etc.last-good.tgz -C /overlay/upper/etc/ . >/dev/null 2>&1")
-            utils.unsafe_shell("cp " .. mesh_config.new_lime_community_path .. " " .. mesh_config.lime_community_path .. ">/dev/null 2>&1")
+            utils.unsafe_shell("cp " .. mesh_config.new_lime_community_path .. " " .. mesh_config.lime_community_path ..
+                                   ">/dev/null 2>&1")
 
             utils.unsafe_shell("lime-config >/dev/null 2>&1")
-
 
             mesh_config.change_state(mesh_config.config_states.RESTART_SCHEDULED)
             mesh_config.safeupgrade_start_mark = os.time()
@@ -518,13 +533,15 @@ end
 --         option root_password_secret ''
 --         option deferable_reboot_uptime_s '97200'
 function mesh_config.confirm()
-    if mesh_config.get_node_status().config_state == mesh_config.config_states.CONFIRMATION_PENDING then
+    if mesh_config.get_node_status().transaction_state == mesh_config.config_states.CONFIRMATION_PENDING then
         local shell_output = utils.unsafe_shell("safe-reboot cancel >/dev/null 2>&1")
         if mesh_config.change_state(mesh_config.config_states.CONFIRMED) then
+            mesh_config.trigger_sheredstate_publish()
             return {
                 code = "SUCCESS"
             }
         end
+
     end
     return {
         code = "NOT_READY_TO_CONFIRM",
@@ -543,7 +560,7 @@ function mesh_config.is_active(status)
 end
 
 function mesh_config.verify_network_consistency(network_state)
-    utils.unsafe_shell('logger -p daemon.info -t "async: mesh upgrade" "verifying" ')
+    utils.unsafe_shell('logger -p daemon.info -t "async: mesh_config" "verifying" ')
     local actual_status = mesh_config.get_node_status()
 
     local main_node = ""
@@ -554,26 +571,26 @@ function mesh_config.verify_network_consistency(network_state)
             if mesh_config.is_active(s_s_data.transaction_state) then
                 if main_node == "" then
                     main_node = node
-                    utils.unsafe_shell('logger -p daemon.info -t "async: mesh upgrade" "there is one main node ' ..
+                    utils.unsafe_shell('logger -p daemon.info -t "async: mesh_config" "there is one main node ' ..
                                            main_node .. ' , ok"')
                 else
                     utils.unsafe_shell(
-                        'logger -p daemon.info -t "async: mesh upgrade" "there are two active main nodes ' .. node ..
+                        'logger -p daemon.info -t "async: mesh_config" "there are two active main nodes ' .. node ..
                             ' and ' .. main_node .. ' , aborting"')
                     mesh_config.abort()
                     return
                 end
             else
                 -- there is an inactive main node 
-                utils.unsafe_shell('logger -p daemon.info -t "async: mesh upgrade" "there is an inactive main node ' ..
+                utils.unsafe_shell('logger -p daemon.info -t "async: mesh_config" "there is an inactive main node ' ..
                                        node .. ' "')
                 if mesh_config.started() and network_state[node].timestamp == actual_status.timestamp then
                     -- i should abort too 
                     utils.unsafe_shell(
-                        'logger -p daemon.info -t "async: mesh upgrade" "i should abort we share timestamps"')
+                        'logger -p daemon.info -t "async: mesh_config" "i should abort we share timestamps"')
                     mesh_config.abort()
                     utils.unsafe_shell(
-                        'logger -p daemon.info -t "async: mesh upgrade" "i should not abort dont share timestamps"')
+                        'logger -p daemon.info -t "async: mesh_config" "i should not abort dont share timestamps"')
                 end
 
             end
@@ -582,24 +599,24 @@ function mesh_config.verify_network_consistency(network_state)
     -- there is only one main node
     if main_node ~= "" then
         if not mesh_config.started() and main_node ~= utils.hostname() then
-            utils.unsafe_shell('logger -p daemon.info -t "async: mesh upgrade" "' .. utils.hostname() .. '  become' ..
-                                   main_node .. ' _bot_node "')
+            utils.unsafe_shell('logger -p daemon.info -t "async: mesh_config" "' .. utils.hostname() .. '  become ' ..
+                                   main_node .. '\'s _bot_node "')
             mesh_config.become_bot_node(network_state[main_node])
         else
-            utils.unsafe_shell('logger -p daemon.info -t "async: mesh upgrade" "already started a transaction "')
+            utils.unsafe_shell('logger -p daemon.info -t "async: mesh_config" "already started a transaction "')
             if network_state[main_node].timestamp == actual_status.timestamp then
                 -- "ok"
                 utils.unsafe_shell(
-                    'logger -p daemon.info -t "async: mesh upgrade" "main node and bot node timestamp are equal"')
+                    'logger -p daemon.info -t "async: mesh_config" "main node and bot node timestamp are equal"')
             else
                 -- I am in a transaction and main node is in an other
                 utils.unsafe_shell(
-                    'logger -p daemon.info -t "async: mesh upgrade" "main node and bot node timestamp are different"')
+                    'logger -p daemon.info -t "async: mesh_config" "main node and bot node timestamp are different"')
                 mesh_config.abort(true)
                 -- this will lead to a doble write to shared state.
                 utils.unsafe_shell(
-                    'logger -p daemon.info -t "async: mesh upgrade" "main node and bot node timestamp are different"')
-                utils.unsafe_shell('logger -p daemon.info -t "async: mesh upgrade" " become_bot_node "')
+                    'logger -p daemon.info -t "async: mesh_config" "main node and bot node timestamp are different"')
+                utils.unsafe_shell('logger -p daemon.info -t "async: mesh_config" " become_bot_node "')
                 mesh_config.become_bot_node(network_state[main_node])
             end
         end

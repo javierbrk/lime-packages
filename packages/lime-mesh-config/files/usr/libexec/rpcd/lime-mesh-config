@@ -3,37 +3,14 @@
 local json = require 'luci.jsonc'
 local mesh_config = require 'lime-mesh-config'
 local ubus = require "ubus"
-local utils = require "lime-utils"
+local utils = require "lime.utils"
 
 local conn = ubus.connect()
 if not conn then
     error("Failed to connect to ubus")
 end
-local sample_status = [[{
-    "lime-config": "config lime network\n\toption main_ipv4_address '10.1.128.0/16/17'\n\toption anygw_dhcp_start '2562'\n\toption anygw_dhcp_limit '30205'\n\toption batadv_orig_interval '5000'\n",
-    "safe_restart_remining": -1,
-    "safe_restart_start_mark": 0,
-    "transaction_state": "DEFAULT",
-    "current_config_hash": "asdsadasd2331", 
-    "new_config_hash": "asdsadasd2331", 
-    "main_node": "NO",
-    "node_ip": "10.13.40.149",
-    "safe_restart_start_time_out": 0,
-    "timestamp": 0,
-    "error": "0",
-    "retry_count": 0
-}]]
-
-local function become_main_node(msg)
-    local result = {
-        code = "SUCCESS",
-        error = ""
-    }
-    return utils.printJson(result)
-end
 
 local function get_node_status(msg)
-    
     return utils.printJson(mesh_config.get_node_status())
 end
 
@@ -45,37 +22,23 @@ return utils.printJson(result)
 end
 
 local function start_config_transaction(msg)
-    utils.printJson(msg)
-    print(mesh_config.generate_original_text(msg.file_contents))
-
-    local result =  {
-        code = "SUCCESS",
-        error = ""
-    }
+    local result =  mesh_config.start_config_transaction(msg.file_contents)
     return utils.printJson(result)
 end
 
 local function  start_safe_reboot(msg)
-    local result =  {
-        code = "SUCCESS",
-        error = ""
-    }
+    local result =  mesh_config.start_safe_reboot()
+
     return utils.printJson(result)
 end
 -- to be called after successfully reboot 
 local function confirm(msg)
-    local result =   {
-        code = "SUCCESS",
-        error = ""
-    }
+    local result =  mesh_config.confirm()
     return utils.printJson(result)
 end
 
 local function abort(msg)
-    local result = {
-        code = "SUCCESS",
-        error = ""
-    }
+    local result =  mesh_config.abort(false)
     return utils.printJson(result)
 end
 

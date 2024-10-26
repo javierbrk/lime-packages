@@ -49,6 +49,10 @@ local mesh_config = {
 
 }
 
+local function registrar(texto)
+    utils.unsafe_shell('logger -p daemon.info -t "async: mesh_config" "' .. texto .. '" ')
+end
+
 function mesh_config.get_current_config_hash()
     return utils.file_sha256(mesh_config.lime_community_path)
 end
@@ -97,37 +101,42 @@ function mesh_config.get_node_status()
     local config_data = {}
     config_data.lime_config = uci:get('mesh-config', 'main', 'lime_config') -- only main node will show the config being distributed until confirmation or error 
     config_data.transaction_state = mesh_config.state()
+    --if safe reboot is running and we where scheduled ... then we are in fact
+    --waiting for confirmation
     local safe_reboot_pid = tonumber(utils.unsafe_shell("cat /tmp/run/safe-reboot.pid 2>/dev/null"))
-    if (config_data.transaction_state == mesh_config.config_states.RESTART_SCHEDULED_SCHEDULED) then
+    if (config_data.transaction_state == mesh_config.config_states.RESTART_SCHEDULED) then
         if (safe_reboot_pid and safe_reboot_pid > 1) then
             mesh_config.change_state(mesh_config.config_states.CONFIRMATION_PENDING)
         end
     end
     config_data.transaction_state = uci:get('mesh-config', 'main', 'transaction_state')
     config_data.error = uci:get('mesh-config', 'main', 'error')
-
     config_data.retry_count = tonumber(uci:get('mesh-config', 'main', 'retry_count'))
     config_data.timestamp = tonumber(uci:get('mesh-config', 'main', 'timestamp'))
-
     config_data.safe_restart_start_mark = tonumber(uci:get('mesh-config', 'main', 'safe_restart_start_mark')) or
                                               mesh_config.safe_restart_start_mark
-
+    mesh_config.safe_restart_start_mark = config_data.safe_restart_start_mark
     config_data.safe_restart_start_time_out = tonumber(uci:get('mesh-config', 'main', 'safe_restart_start_time_out')) or
                                                   mesh_config.safe_restart_start_time_out
-
+    mesh_config.safe_restart_start_time_out = mesh_config.safe_restart_start_time_out
     config_data.safe_restart_confirm_timeout =
         tonumber(uci:get('mesh-config', 'main', 'safe_restart_confirm_timeout')) or
             mesh_config.safe_restart_confirm_timeout
-
+    mesh_config.safe_restart_confirm_timeout = config_data.safe_restart_confirm_timeout
     config_data.main_node = mesh_config.main_node_state()
     config_data.board_name = eupgrade._get_board_name()
     config_data.current_config_hash = mesh_config.get_current_config_hash()
     config_data.new_config_hash = mesh_config.get_new_config_hash()
     config_data.node_ip = uci:get("network", "lan", "ipaddr")
+
     config_data.safe_restart_remining = (mesh_config.safe_restart_start_time_out -
-                                            (utils.uptime_s() - mesh_config.safe_restart_start_mark) > 0 and
+                                            (os.time() - mesh_config.safe_restart_start_mark) > 0 and
                                             mesh_config.safe_restart_start_time_out -
-                                            (utils.uptime_s() - mesh_config.safe_restart_start_mark) or -1)
+                                            (os.time() - mesh_config.safe_restart_start_mark) or -1)
+    config_data.safe_restart_remining = (mesh_config.safe_restart_start_time_out -
+                                            (os.time() - mesh_config.safe_restart_start_mark) > 0 and
+                                            mesh_config.safe_restart_start_time_out -
+                                            (os.time() - mesh_config.safe_restart_start_mark) or -1)
     config_data.confirm_remining = safe_reboot_pid
     return config_data
 end
@@ -161,7 +170,7 @@ function mesh_config.start_config_transaction(new_comunity_file)
         uci:save('mesh-config')
         uci:commit('mesh-config')
 
-        mesh_config.trigger_sheredstate_publish()
+        mesh_config.trigger_shared_state_publish()
 
         return {
             code = "SUCCESS",
@@ -287,14 +296,19 @@ end
 --- 
 ---@param silent_abortion boolean if true will not publish info in shared-state
 function mesh_config.abort(silent_abortion)
+    registrar("aborting.... ")
     if mesh_config.change_state(mesh_config.config_states.ABORTED) then
         local uci = config.get_uci_cursor()
         uci:set('mesh-config', 'main', 'retry_count', 0)
         uci:save('mesh-config')
         uci:commit('mesh-config')
         if silent_abortion == nil or silent_abortion == false then
-            mesh_config.trigger_sheredstate_publish()
+            registrar("aborting.... triger publish ")
+
+            mesh_config.trigger_shared_state_publish()
         end
+        registrar("end aborting  ")
+
         -- todo(javi): stop and delete everything
         -- os.execute("rm ".. eupgrade.WORKDIR .."  -r >/dev/null 2>&1")
         -- kill posible safe upgrade command
@@ -308,11 +322,9 @@ function mesh_config.abort(silent_abortion)
 end
 
 -- This line will genereate recursive dependencies like in pirania pakcage
-function mesh_config.trigger_sheredstate_publish()
-    utils.execute_daemonized(
-        "/usr/share/shared-state/publishers/shared-state-publish_mesh_config && shared-state-async sync mesh_config")
-    utils.execute_daemonized(
-        "sleep 27;/usr/share/shared-state/publishers/shared-state-publish_mesh_config && shared-state-async sync mesh_config")
+function mesh_config.trigger_shared_state_publish()
+    registrar("triger publish")
+    utils.execute_daemonized("/usr/lib/lua/force_publish.sh mesh_config " .. utils.hostname() .. " transaction_state")
 end
 
 function mesh_config.change_main_node_state(newstate)
@@ -372,9 +384,7 @@ end
 -- It will only fetch new information if main node has aborted or main node is
 -- ready for upgraade. Called by a shared state hook
 function mesh_config.become_bot_node(main_node_upgrade_data)
-    local function registrar(texto)
-        utils.unsafe_shell('logger -p daemon.info -t "async: mesh_config" "' .. texto .. '" ')
-    end
+
     local actual_state = mesh_config.get_node_status()
     -- only abort if my main node has aborted
     if main_node_upgrade_data.transaction_state == mesh_config.config_states.ABORTED and
@@ -411,7 +421,7 @@ function mesh_config.become_bot_node(main_node_upgrade_data)
 
                     if (mesh_config.change_main_node_state(mesh_config.main_node_states.NO) and
                         mesh_config.change_state(mesh_config.config_states.READY_FOR_APLY)) then
-                        mesh_config.trigger_sheredstate_publish()
+                        mesh_config.trigger_shared_state_publish()
 
                         return {
                             code = "SUCCESS",
@@ -470,30 +480,26 @@ function mesh_config.start_safe_reboot(su_start_delay, su_confirm_timeout)
             code = "NOT_ABLE_TO_SAFE_REBOOT",
             error = "safereboot is not working"
         }
-
     end
     if mesh_config.state() == mesh_config.config_states.READY_FOR_APLY then
         if utils.file_exists(mesh_config.new_lime_community_path) then
-
             utils.unsafe_shell("tar -czf /overlay/upper/.etc.last-good.tgz -C /overlay/upper/etc/ . >/dev/null 2>&1")
             utils.unsafe_shell("cp " .. mesh_config.new_lime_community_path .. " " .. mesh_config.lime_community_path ..
                                    ">/dev/null 2>&1")
-
             utils.unsafe_shell("lime-config >/dev/null 2>&1")
-
             mesh_config.change_state(mesh_config.config_states.RESTART_SCHEDULED)
-            mesh_config.safeupgrade_start_mark = os.time()
+            mesh_config.safe_restart_start_mark = os.time()
             local uci = config.get_uci_cursor()
-            uci:set('mesh-config', 'main', 'safeupgrade_start_mark', mesh_config.safeupgrade_start_mark)
-            uci:set('mesh-config', 'main', 'su_start_time_out', mesh_config.safe_restart_start_time_out)
-            uci:set('mesh-config', 'main', 'su_confirm_timeout', mesh_config.safe_restart_confirm_timeout)
+            uci:set('mesh-config', 'main', 'safe_restart_start_mark', mesh_config.safe_restart_start_mark)
+            uci:set('mesh-config', 'main', 'safe_restart_start_time_out', mesh_config.safe_restart_start_time_out)
+            uci:set('mesh-config', 'main', 'safe_restart_confirm_timeout', mesh_config.safe_restart_confirm_timeout)
             uci:save('mesh-config')
             uci:commit('mesh-config')
 
-            mesh_config.trigger_sheredstate_publish()
+            mesh_config.trigger_shared_state_publish()
             -- upgrade must be executed after a safe upgrade timeout to enable all nodes to start_safe_upgrade
             utils.execute_daemonized("sleep " .. mesh_config.safe_restart_start_time_out .. "; safe-reboot now -f " ..
-                                         mesh_config.safe_restart_confirm_timeout .. ">/dev/null 2>&1")
+                                         mesh_config.safe_restart_confirm_timeout .. " >/dev/null 2>&1")
             return {
                 code = "SUCCESS",
                 error = "",
@@ -504,39 +510,23 @@ function mesh_config.start_safe_reboot(su_start_delay, su_confirm_timeout)
         else
             mesh_config.report_error(mesh_config.errors.FW_FILE_NOT_FOUND)
             return {
-                code = "NOT_ABLE_TO_START_UPGRADE",
-                error = "Firmware not found"
+                code = "NOT_ABLE_TO_START",
+                error = "No new config available"
             }
         end
     else
         return {
-            code = "NOT_READY_FOR_UPGRADE",
-            error = "Not READY FOR UPGRADE"
+            code = "NOT_READY_FOR_RESTART",
+            error = "Not READY FOR RESTART"
         }
     end
 end
 
--- This command requires that the configuration be preserverd across upgrade,
--- maybe this change achieves this objetive
-
--- diff --git a/packages/lime-system/files/etc/config/lime-defaults b/packages/lime-system/files/etc/config/lime-defaults
--- index 5f5c4a31..8d55d949 100644
--- --- a/packages/lime-system/files/etc/config/lime-defaults
--- +++ b/packages/lime-system/files/etc/config/lime-defaults
--- @@ -8,7 +8,7 @@
---  config lime system
---         option hostname 'LiMe-%M4%M5%M6'
---         option domain 'thisnode.info'
--- -       option keep_on_upgrade 'libremesh dropbear minimum-essential /etc/sysupgrade.conf'
--- +       option keep_on_upgrade 'libremesh dropbear minimum-essential /etc/sysupgrade.conf /etc/config/mesh_config'
---         option root_password_policy 'DO_NOTHING'
---         option root_password_secret ''
---         option deferable_reboot_uptime_s '97200'
 function mesh_config.confirm()
     if mesh_config.get_node_status().transaction_state == mesh_config.config_states.CONFIRMATION_PENDING then
         local shell_output = utils.unsafe_shell("safe-reboot cancel >/dev/null 2>&1")
         if mesh_config.change_state(mesh_config.config_states.CONFIRMED) then
-            mesh_config.trigger_sheredstate_publish()
+            mesh_config.trigger_shared_state_publish()
             return {
                 code = "SUCCESS"
             }

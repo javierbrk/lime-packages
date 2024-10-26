@@ -27,7 +27,7 @@ local function start_config_transaction(msg)
 end
 
 local function  start_safe_reboot(msg)
-    local result =  mesh_config.start_safe_reboot()
+    local result =  mesh_config.start_safe_reboot(msg.start_delay ,msg.confirm_timeout)
 
     return utils.printJson(result)
 end

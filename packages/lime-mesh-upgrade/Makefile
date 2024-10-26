@@ -9,16 +9,12 @@ include $(INCLUDE_DIR)/package.mk
 
 define Package/$(PKG_NAME)
   CATEGORY:=LibreMesh
-  MAINTAINER:=Asociación Civil Altermundi <info@altermundi.net>
-  TITLE:=Lime config mesh distribution
-  DEPENDS:= +lua +libubus-lua +safe-reboot \
-  +shared-state-mesh_config
+  MAINTAINER:=selankon <selankon@selankon.xyz>
+  TITLE:=LibreMesh mesh wide firmware upgrade
+  DEPENDS:= +lua +libubus-lua +safe-upgrade \
+  +shared-state-mesh_wide_upgrade
 
   PKGARCH:=all
-endef
-
-define Package/$(PKG_NAME)/description
-	Mesh wide config distribution and testing with safe-reboot
 endef
 
 define Build/Compile

@@ -20,6 +20,7 @@ reboot process and the nodes will reboot.
 
 ubus -v list lime-mesh-config
 ubus -v call lime-mesh-config get_node_status
+ubus -v call lime-mesh-config get_comunity_config
 ubus -v call lime-mesh-config start_config_transaction  '{"file_contents":"config lime network\n\toption main_ipv4_address '10.1.128.0/16/17'\n\toption anygw_dhcp_start '2562'\n\toption anygw_dhcp_limit '30205'\n\toption batadv_orig_interval '5000'\n"}'
 
 shared-state-async get mesh_config

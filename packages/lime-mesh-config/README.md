@@ -35,10 +35,12 @@ ubus -v call lime-mesh-config start_config_transaction  '{"file_contents":"confi
 shared-state-async get mesh_config
 ```
 
-if you are using an x86 vm for testing
-
+NOTE: if you are using an x86 vm for testing
 ```bash
 mkdir /overlay/upper/
+```
+
+```bash
 ubus -v -t 30 call lime-mesh-config start_safe_reboot '{"confirm_timeout":2001, "start_delay":63}'
 ```
 

@@ -81,7 +81,7 @@ end
 -- One may just ask for the config or ask because it will start a new
 -- transaction
 -- @start_new_transaction yould be true to start a new transaction
-function mesh_config.get_comunity_config(start_new_transaction)
+function mesh_config.get_community_config(start_new_transaction)
     -- if (start_new_transaction) then
     --     mesh_config.change_state(mesh_config.config_states.WORKING)
     --     mesh_config.change_main_node_state(mesh_config.main_node_states.STARTING)
@@ -90,7 +90,7 @@ function mesh_config.get_comunity_config(start_new_transaction)
     return mesh_config.generate_escaped_text(filecontent)
 end
 
-function mesh_config.get_new_comunity_config()
+function mesh_config.get_new_community_config()
     local filecontent = utils.read_file(mesh_config.new_lime_community_path)
     return mesh_config.generate_escaped_text(filecontent)
 end
@@ -111,16 +111,19 @@ function mesh_config.get_node_status()
     end
     config_data.transaction_state = uci:get('mesh-config', 'main', 'transaction_state')
     config_data.error = uci:get('mesh-config', 'main', 'error')
-    config_data.retry_count = tonumber(uci:get('mesh-config', 'main', 'retry_count'))
-    config_data.timestamp = tonumber(uci:get('mesh-config', 'main', 'timestamp'))
-    config_data.safe_restart_start_mark = tonumber(uci:get('mesh-config', 'main', 'safe_restart_start_mark')) or
+    config_data.retry_count = tonumber(uci:get('mesh-config', 'main', 'retry_count')or '0')
+    local timestamp_str, _ = uci:get('mesh-config', 'main', 'timestamp') 
+    config_data.timestamp = tonumber(timestamp_str)
+    local safe_restart, _ = uci:get('mesh-config', 'main', 'safe_restart_start_mark')
+    config_data.safe_restart_start_mark = tonumber(safe_restart) or
                                               mesh_config.safe_restart_start_mark
     mesh_config.safe_restart_start_mark = config_data.safe_restart_start_mark
-    config_data.safe_restart_start_time_out = tonumber(uci:get('mesh-config', 'main', 'safe_restart_start_time_out')) or
+    local statrt, _ = uci:get('mesh-config', 'main', 'safe_restart_start_time_out')
+    config_data.safe_restart_start_time_out = tonumber(statrt) or
                                                   mesh_config.safe_restart_start_time_out
     mesh_config.safe_restart_start_time_out = mesh_config.safe_restart_start_time_out
-    config_data.safe_restart_confirm_timeout =
-        tonumber(uci:get('mesh-config', 'main', 'safe_restart_confirm_timeout')) or
+    local time_out, _ = uci:get('mesh-config', 'main', 'safe_restart_confirm_timeout')
+    config_data.safe_restart_confirm_timeout = tonumber(time_out) or
             mesh_config.safe_restart_confirm_timeout
     mesh_config.safe_restart_confirm_timeout = config_data.safe_restart_confirm_timeout
     config_data.main_node = mesh_config.main_node_state()
@@ -141,15 +144,15 @@ function mesh_config.get_node_status()
     return config_data
 end
 
-function mesh_config.set_new_comunity_config(new_comunity_file)
-    utils.write_file(mesh_config.new_lime_community_path, mesh_config.generate_original_text(new_comunity_file))
+function mesh_config.set_new_community_config(new_community_file)
+    utils.write_file(mesh_config.new_lime_community_path, mesh_config.generate_original_text(new_community_file))
 end
 
 -- Function that check if tihs node have all things needed to became a main node
 -- Then, call update shared state with the proper info
--- @new_comunity_file new file to be shared as escaped text file
-function mesh_config.start_config_transaction(new_comunity_file)
-    if not new_comunity_file then
+-- @new_community_file new file to be shared as escaped text file
+function mesh_config.start_config_transaction(new_community_file)
+    if not new_community_file then
         if not utils.file_exists(mesh_config.new_lime_community_path) then
             return {
                 code = "NO_NEW_CONFIG",
@@ -158,14 +161,14 @@ function mesh_config.start_config_transaction(new_comunity_file)
         end
     else
         -- write new lime_community in path
-        mesh_config.set_new_comunity_config(new_comunity_file)
+        mesh_config.set_new_community_config(new_community_file)
     end
 
     if (mesh_config.change_main_node_state(mesh_config.main_node_states.MAIN_NODE) and
         mesh_config.change_state(mesh_config.config_states.READY_FOR_APLY)) then
         local uci = config.get_uci_cursor()
         -- only main node will show the config being distributed until confirmation or error 
-        uci:set('mesh-config', 'main', 'lime_config', mesh_config.get_new_comunity_config())
+        uci:set('mesh-config', 'main', 'lime_config', mesh_config.get_new_community_config())
         uci:set('mesh-config', 'main', 'timestamp', os.time())
         uci:save('mesh-config')
         uci:commit('mesh-config')
@@ -409,7 +412,7 @@ function mesh_config.become_bot_node(main_node_upgrade_data)
                 registrar("seting upgrade info")
                 if (mesh_config.set_mesh_config_info(main_node_upgrade_data, mesh_config.config_states.WORKING)) then
 
-                    mesh_config.set_new_comunity_config(main_node_upgrade_data.lime_config)
+                    mesh_config.set_new_community_config(main_node_upgrade_data.lime_config)
                     if not (mesh_config.get_new_config_hash() == main_node_upgrade_data.new_config_hash) then
                         registrar("seting upgrade info")
                         mesh_config.abort()

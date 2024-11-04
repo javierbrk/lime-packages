@@ -1,0 +1,15 @@
+{
+    "lime-app": {
+        "description": "lime-mesh-config public access",
+        "read": {
+            "ubus": {
+                    "lime-mesh-config": [ "*" ]
+            }
+        },
+        "write": {
+            "ubus": {
+                    "lime-mesh-config": [ "*" ]
+            }
+        }
+    }
+}

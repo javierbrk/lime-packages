@@ -14,9 +14,9 @@ local function get_node_status(msg)
     return utils.printJson(mesh_config.get_node_status())
 end
 
-local function get_comunity_config(msf)
+local function get_community_config(msf)
     local result =  {
-        file_contents = mesh_config.get_comunity_config()
+        file_contents = mesh_config.get_community_config()
     }
 return utils.printJson(result)
 end
@@ -52,7 +52,7 @@ local methods = {
     get_node_status = {
         no_params = 0
     },
-    get_comunity_config = {
+    get_community_config = {
         no_params = 0
     },
     start_safe_reboot = {
@@ -83,8 +83,8 @@ if arg[1] == 'call' then
         get_node_status(msg)
     elseif arg[2] == 'start_safe_reboot' then
         start_safe_reboot(msg)
-    elseif arg[2] == 'get_comunity_config' then
-        get_comunity_config(msg)
+    elseif arg[2] == 'get_community_config' then
+        get_community_config(msg)
     elseif arg[2] == 'confirm' then
         confirm(msg)
     elseif arg[2] == 'abort' then

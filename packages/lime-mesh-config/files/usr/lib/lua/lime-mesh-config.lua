@@ -18,7 +18,7 @@ local mesh_config = {
     config_states = {
         DEFAULT = "DEFAULT", -- When no config has changed
         WORKING = "WORKING", -- when a user starts changing the config
-        READY_FOR_APLY = "READY_FOR_APLY", -- the config is set in the node and is ready to reboot 
+        READY_FOR_APPLY = "READY_FOR_APPLY", -- the config is set in the node and is ready to reboot 
         RESTART_SCHEDULED = "RESTART_SCHEDULED", -- the node will reboot in xx seconds 
         CONFIRMATION_PENDING = "CONFIRMATION_PENDING", -- the node rebooted and the configuration is not confirmed 
         CONFIRMED = "CONFIRMED", -- the configuration has been set and the user was able to confirm the change
@@ -28,7 +28,7 @@ local mesh_config = {
     -- Main node specific states
     main_node_states = {
         NO = "NO",
-        STARTING = "STARTING",
+        --STARTING = "STARTING",
         MAIN_NODE = "MAIN_NODE"
     },
     -- list of possible errors
@@ -165,7 +165,7 @@ function mesh_config.start_config_transaction(new_community_file)
     end
 
     if (mesh_config.change_main_node_state(mesh_config.main_node_states.MAIN_NODE) and
-        mesh_config.change_state(mesh_config.config_states.READY_FOR_APLY)) then
+        mesh_config.change_state(mesh_config.config_states.READY_FOR_APPLY)) then
         local uci = config.get_uci_cursor()
         -- only main node will show the config being distributed until confirmation or error 
         uci:set('mesh-config', 'main', 'lime_config', mesh_config.get_new_community_config())
@@ -395,7 +395,7 @@ function mesh_config.become_bot_node(main_node_upgrade_data)
         registrar("main node has aborted")
         mesh_config.abort()
         return
-    elseif main_node_upgrade_data.transaction_state == mesh_config.config_states.READY_FOR_APLY then
+    elseif main_node_upgrade_data.transaction_state == mesh_config.config_states.READY_FOR_APPLY then
         if mesh_config.started() then
             registrar("node has already started")
             return
@@ -423,7 +423,7 @@ function mesh_config.become_bot_node(main_node_upgrade_data)
                     end
 
                     if (mesh_config.change_main_node_state(mesh_config.main_node_states.NO) and
-                        mesh_config.change_state(mesh_config.config_states.READY_FOR_APLY)) then
+                        mesh_config.change_state(mesh_config.config_states.READY_FOR_APPLY)) then
                         mesh_config.trigger_shared_state_publish()
 
                         return {
@@ -484,9 +484,14 @@ function mesh_config.start_safe_reboot(su_start_delay, su_confirm_timeout)
             error = "safereboot is not working"
         }
     end
-    if mesh_config.state() == mesh_config.config_states.READY_FOR_APLY then
+    if mesh_config.state() == mesh_config.config_states.READY_FOR_APPLY then
         if utils.file_exists(mesh_config.new_lime_community_path) then
-            utils.unsafe_shell("tar -czf /overlay/upper/.etc.last-good.tgz -C /overlay/upper/etc/ . >/dev/null 2>&1")
+            --verify that /overlay/upper/ exists
+            local safe_reset_workdir = "/overlay/upper/"
+            if not utils.file_exists(safe_reset_workdir) then
+                os.execute('mkdir -p ' .. safe_reset_workdir)
+            end
+            utils.unsafe_shell("tar -czf "..safe_reset_workdir..".etc.last-good.tgz -C /overlay/upper/etc/ . >/dev/null 2>&1")
             utils.unsafe_shell("cp " .. mesh_config.new_lime_community_path .. " " .. mesh_config.lime_community_path ..
                                    ">/dev/null 2>&1")
             utils.unsafe_shell("lime-config >/dev/null 2>&1")

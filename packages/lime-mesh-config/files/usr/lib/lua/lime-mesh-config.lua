@@ -377,6 +377,9 @@ function mesh_config.change_state(newstate)
     -- todo(javi): verify other states and return false if it is not possible
     -- lets allow all types of state changes.
     local uci = config.get_uci_cursor()
+    if newstate ~= mesh_config.config_states.ERROR then
+        uci:set('mesh-config', 'main', 'error', '')
+    end
     uci:set('mesh-config', 'main', 'transaction_state', newstate)
     uci:save('mesh-config')
     uci:commit('mesh-config')

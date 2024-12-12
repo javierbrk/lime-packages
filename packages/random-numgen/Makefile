@@ -6,6 +6,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=random-numgen
 PKG_VERSION:=0.1
+PKG_VERSION:=$(subst -,.,$(PKG_VERSION))
 PKG_RELEASE:=1
 
 PKG_MAINTAINER:=Ilario Gelmetti <ilario@sindominio.net>

@@ -8,6 +8,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=bmx7-auto-gw-bw-mode
 PKG_VERSION=0.1
+PKG_VERSION:=$(subst -,.,$(PKG_VERSION))
 
 include $(INCLUDE_DIR)/package.mk
 

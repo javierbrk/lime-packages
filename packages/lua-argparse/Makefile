@@ -8,6 +8,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=lua-argparse
 PKG_VERSION:=0.6.0
+PKG_VERSION:=$(subst -,.,$(PKG_VERSION))
 PKG_RELEASE:=2
 PKG_MAINTAINER:=Santiago Piccinini <spiccinini@altermundi.net>
 PKG_LICENSE:=MIT

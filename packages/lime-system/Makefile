@@ -11,6 +11,7 @@ GIT_COMMIT_TSTAMP:=$(shell git log -n 1 --pretty=%at . )
 
 PKG_NAME:=lime-system
 PKG_VERSION=$(GIT_COMMIT_DATE)-$(GIT_COMMIT_TSTAMP)
+PKG_VERSION:=$(subst -,.,$(PKG_VERSION))
 
 LIME_ID:=LiMe
 LIME_RELEASE:=$(shell git branch | sed -n '/\* /s///p')

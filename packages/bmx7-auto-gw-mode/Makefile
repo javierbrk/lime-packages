@@ -11,6 +11,7 @@ GIT_COMMIT_TSTAMP:=$(shell git log -n 1 --pretty=%at . )
 
 PKG_NAME:=bmx7-auto-gw-mode
 PKG_VERSION=$(GIT_COMMIT_DATE)-$(GIT_COMMIT_TSTAMP)
+PKG_VERSION:=$(subst -,.,$(PKG_VERSION))
 
 include $(INCLUDE_DIR)/package.mk
 

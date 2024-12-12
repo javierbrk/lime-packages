@@ -8,6 +8,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-lib-jquery-flot-0-8
 PKG_VERSION:=0.8.1
+PKG_VERSION:=$(subst -,.,$(PKG_VERSION))
 PKG_RELEASE:=1
 
 include $(INCLUDE_DIR)/package.mk

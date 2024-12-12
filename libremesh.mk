@@ -12,10 +12,10 @@ PKG_VERSION?=$(if $(DUMP),x,$(strip $(shell \
 			set -- $$(git log -1 --format="%ct %h" --abbrev=7); \
 			secs="$$(($$1 % 86400))"; \
 			yday="$$(date --utc --date="@$$1" "+%y.%j")"; \
-			revision="$$(printf 'git-%s.%05d-%s' "$$yday" "$$secs" "$$2")"; \
+			revision="$$(printf '%s.%05d' "$$yday" "$$secs" | tr -cd '0-9.')"; \
 		fi; \
 	else \
-		revision="unknown"; \
+		revision="0.0.0.0"; \
 	fi; \
 	echo "$$revision" \
 )))

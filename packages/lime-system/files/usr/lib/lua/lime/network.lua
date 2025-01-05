@@ -222,7 +222,7 @@ function network.clean()
 end
 
 function network._get_lower(dev)
-    local lower_if_path = utils.unsafe_shell("ls -d /sys/class/net/" .. dev .. "/lower*")
+    local lower_if_path = utils.unsafe_shell("ls /sys/class/net/" .. dev .. "/ | grep ^lower")
     local lower_if_table = utils.split(lower_if_path, "_")
     local lower_if = lower_if_table[#lower_if_table]
     return lower_if and lower_if:gsub("\n", "")
@@ -267,12 +267,14 @@ function network.scandevices()
 
 		--! With DSA, the WAN is named wan. Copying the code from the lan case.
 		if dev:match("^wan$") then
+			devices[dev] = {}
 			local lower_if = network._get_lower(dev)
 			if lower_if then
 				devices[lower_if] = { nobridge = true }
-				devices[dev] = {}
 				utils.log( "network.scandevices.dev_parser found WAN port %s " ..
 				           "and marking %s as nobridge", dev, lower_if )
+			else
+				utils.log( "network.scandevices.dev_parser found WAN port %s", dev)
 			end
 		end
 

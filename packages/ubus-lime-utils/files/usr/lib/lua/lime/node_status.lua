@@ -57,8 +57,20 @@ function node_status.get_station_stats(station)
     local signal, chain = string.match(signal_str, "(%-?%d+)%s+%[(.-)%]")
     station.signal = tonumber(signal)
     station.chains = {}
-    for num in string.gmatch(chain, "%-?%d+") do
-        table.insert(station.chains, tonumber(num))
+    --[[
+    succesive calls to this function will lead to an error 
+    /usr/bin/lua: /usr/lib/lua/lime/node_status.lua:60: bad argument #1 to 'gmatch' (string expected, got nil)
+stack traceback:
+	[C]: in function 'gmatch'
+	/usr/lib/lua/lime/node_status.lua:60: in function 'get_station_stats'
+	...tate/publishers/shared-state-publish_wifi_links_info:32: in function 'get_wifi_links_info'
+	...tate/publishers/shared-state-publish_wifi_links_info:45: in main chunk
+	[C]: ?
+    ]]--
+    if chain ~= nil then
+        for num in string.gmatch(chain, "%-?%d+") do
+            table.insert(station.chains, tonumber(num))
+        end
     end
     return station
 end
@@ -122,22 +134,24 @@ end
 
 function node_status.dsa_get_link_status(ports)
     for _, port in ipairs(ports) do
-        local dsa = utils.unsafe_shell("ip -j -p link show " .. port['num'])
-        local dsa_json = json.parse(dsa)
-
-        port['device'] = port['num']
-        port['num'] = dsa_json[1]['ifindex']
-        port['role'] = dsa_json[1]['link']
-        if dsa_json[1]['link'] == nil then
-            port['role'] = dsa_json[1]['ifname']
-        end
-        port['link'] = dsa_json[1]['operstate']
-        if dsa_json[1]['operstate'] == "LOWERLAYERDOWN" then
-            port['link'] = "DOWN"
-        end
-    end
-    return ports
-end
+        local dsa = utils.unsafe_shell("ip link show " .. port['num'])
+        -- Match ifindex, ifname, link (optional), and operstate                                    
+        local ifindex, ifname, link, operstate = dsa:match("^(%d+): ([^:@]+)@?([^:]*):.-state (%S+)")             
+        if ifindex and ifname and operstate then                                                                              
+            port['device'] = port['num']                             
+            port['num'] = tonumber(ifindex)                                                          
+            port['role'] = link ~= "" and link or nil -- Handle optional link field
+            if port['role'] == nil then                                                             
+                port['role'] = ifname                                                                      
+            end                                                                                                               
+            port['link'] = operstate                                 
+            if operstate == "LOWERLAYERDOWN" then                                            
+                port['link'] = "DOWN"                                              
+            end                                                                                     
+        end                                                                                                       
+    end                                                                                                                       
+    return ports                                                     
+end 
 
 
 function node_status.swconfig_get_link_status(ports)

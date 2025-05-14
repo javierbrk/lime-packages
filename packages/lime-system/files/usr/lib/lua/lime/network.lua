@@ -268,7 +268,7 @@ function network.scandevices(specificIfaces)
 			--! pluggable ethernet dongles.
 			utils.log( "network.scandevices.dev_parser found plain Ethernet " ..
 			           "device %s", dev )
-		elseif dev:match("^wlan%d+"..wireless.wifiModeSeparator.."%w+$") then
+		elseif dev:match("^wlan%d+"..wireless.WIFI_MODE_SEPARATOR().."%w+$") then
 			utils.log( "network.scandevices.dev_parser found WiFi device %s",
 			           dev )
 		elseif specificIfaces[dev] then
@@ -559,9 +559,6 @@ function network.createStatic(linuxBaseIfname)
 		ipaddr  = ipv4:host():string(),
 		netmask = "255.255.255.255"
 	}
-
-	print('network', 'add_dynamic')
-	utils.dumptable(ifaceConf)
 
 	local libubus = require("ubus")
 	local ubus = libubus.connect()

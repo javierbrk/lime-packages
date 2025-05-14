@@ -599,10 +599,6 @@ function utils.is_dsa(port)
     return 0 == os.execute("grep -sq DEVTYPE=dsa /sys/class/net/"..port.."/uevent")
 end
 
-function utils.file_sha256(path)
-    return utils.unsafe_shell(string.format("sha256sum %s 2>/dev/null", path)):match("^([^%s]+)")
-end
-
 function utils.dumptable(table, nesting)
   local nesting = nesting or 1
   if type(table) ~= "table" then

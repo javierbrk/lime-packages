@@ -21,7 +21,8 @@ config lime system
 	option keep_on_upgrade 'libremesh dropbear minimum-essential /etc/sysupgrade.conf'	# Files defining the list of files and directories to backup when upgrade. Relative to /lib/upgrade/keep.d if no '/' defined.
 	option root_password_policy 'DO_NOTHING'	# When configured to SET_SECRET, the root password secret will be configured as specified in root_password_secret. When set to RANDOM a strong random password will be set if root has no password, use this if your firmware is built with the ssh keys inside. DO_NOTHING does nothing, leaving the root password empty (you will have to set it manually or through FirstBootWizard).
 	option root_password_secret ''			# This is the password hash as stored in /etc/shadow, it is only used when root_password_policy=SET_SECRET. You can generate the secret with 'openssl passwd -1' to be compatible with most openwrt firmwares, use a strong password with at least 10 numbers and letters, the longer the better!. For improved security use "openssl passwd -6" for SHA512 (or -5 for SHA256) but be aware that not all firmwares support this.
-	option deferable_reboot_uptime_s '97200'
+	option deferrable_reboot_uptime_s '97200'
+	option deferrable_reboot_ping_target '4.2.2.2' # b.resolvers.Level3.net	# the reboot scheduled by deferrable_reboot, if installed, will be deferred if the ping to this IP is succesful
 	option firstbootwizard_configured false
 	option firstbootwizard_dismissed false		# When true fbw banner will be hidden.
 
@@ -72,6 +73,7 @@ config lime network
 config lime wifi					# Settings in this section applies to all radios. 
 	list modes 'ap'					# This mode setup an Access Point, with the same ssid in each node for roaming purposes.
 	list modes 'apname'				# This mode setup an Access Point, with specific ssid for each node.
+	list modes 'apup'				# This mode setup radio for APuP operation.
 	list modes 'ieee80211s'				# Used for mesh links between nodes.
 #	list modes 'adhoc'				# See below for adhoc configuration
 #	list modes 'client'				# See below for client configuration
@@ -82,6 +84,7 @@ config lime wifi					# Settings in this section applies to all radios.
 	option apname_ssid 'LibreMesh.org/%H'		# SSID specific to each AP. A user can connect to the named AP to avoid roaming
 #	option apname_key 'SomeWPA2PskKey'
 #	option apname_encryption 'psk2'
+	option apup_ssid 'LibreMesh.org'                # set here your APuP based network name
 	option adhoc_ssid 'LiMe'			# SSID of the APs (nodes) when meshing in ad-hoc mode, i.e., the nodes form an IBSS. Not used when meshing in 802.11s (the default)
 	option adhoc_bssid 'ca:fe:00:c0:ff:ee'
 	option ieee80211s_mesh_fwding '0'		# Settings needed only for 802.11s
@@ -264,3 +267,15 @@ config net
 #config bgp_peer peer2
 #	option remoteIP '2001:db8::c001'
 #	option remoteAS '65549'
+
+#########################################################
+### Watchcat specific sections
+### One section for each ping-watchdog rule you want to define.
+
+# Ping-reboot the device if gateway (or any IP) is unreachable
+config hwd_watchcat default
+    option mode       'ping_reboot'
+    option pinghosts  '4.2.2.2'    # default Level3 resolver
+    option pingperiod '30s'        # send one ping every 30 seconds
+    option period     '6h'         # reboot if 6h continuously failing
+    option forcedelay '1m'         # wait up to 1m for a soft-reboot

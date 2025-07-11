@@ -615,4 +615,9 @@ function utils.dumptable(table, nesting)
   end
 end
 
+function utils.file_sha256(path)
+    return utils.unsafe_shell(string.format("sha256sum %s 2>/dev/null", path)):match("^([^%s]+)")
+end
+
+
 return utils

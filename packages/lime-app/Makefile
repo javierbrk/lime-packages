@@ -38,7 +38,6 @@ define Package/$(PKG_NAME)/install
 	$(CP) ./files/* $(1)/
 	$(INSTALL_DIR) $(1)/www/app/
 	$(CP) $(BUILD_DIR)/build/* $(1)/www/app/
-	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d || true
 endef
 
 define Package/$(PKG_NAME)/postinst

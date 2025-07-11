@@ -326,8 +326,15 @@ end
 
 -- This line will genereate recursive dependencies like in pirania pakcage
 function mesh_config.trigger_shared_state_publish()
-    registrar("triger publish")
-    utils.execute_daemonized("/usr/lib/lua/force_publish.sh mesh_config " .. utils.hostname() .. " transaction_state")
+    -- registrar("triger publish")
+    -- utils.execute_daemonized("/usr/lib/lua/force_publish.sh mesh_config " ..
+    -- utils.hostname() .. " transaction_state")
+    utils.execute_daemonized("sleep 1; \
+    /usr/share/shared-state/publishers/shared-state-publish_mesh_config && shared-state-async sync mesh_wide_upgrade")
+ -- minimum renewal time is 30s if not able to renew info just wait, if firts fails the seccond success, 
+ -- if the first succesds the seccond will fail. Sadly merge will output 0 so both times will make sync.
+ utils.execute_daemonized("sleep 30; \
+     /usr/share/shared-state/publishers/shared-state-publish_mesh_config && shared-state-async sync mesh_wide_upgrade")
 end
 
 function mesh_config.change_main_node_state(newstate)

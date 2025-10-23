@@ -67,6 +67,29 @@ function wireless.is5Ghz(radio)
 	return devModes and (devModes.a or devModes.ac)
 end
 
+function wireless.is6Ghz(radio)
+	local config = require("lime.config")
+	local uci = config.get_uci_cursor()
+	wifi_band = uci:get('wireless', radio, 'band')
+	if wifi_band then return wifi_band=='6g' end
+	return false
+end
+
+function wireless.getRadioBand(radioName)
+	if wireless.is5Ghz(radioName) then
+		return '5ghz'
+	end
+	if wireless.is6Ghz(radioName) then
+		--! currently untested and reserved for indoor use
+		-- let's default to 5ghz for now
+		-- TODO: test 6g band and decide a path forward with
+		local uci = config.get_uci_cursor()
+		uci:set("wireless", radioName, "band", "5g") 
+		return '5ghz'
+	end
+	return '2ghz'
+end
+
 wireless.availableModes = { adhoc=true, ap=true, apname=true, apbb=true, ieee80211s=true }
 function wireless.isMode(m)
 	return wireless.availableModes[m]
@@ -85,16 +108,16 @@ function wireless.mesh_ifaces()
 				table.insert(ifaces, entry.ifname)
 			end
 		end)
-	--add apup interfaces 
-	--this are not listed in uci 
+	--! add apup interfaces 
+	--! this are not listed in uci 
 	local shell_output = utils.unsafe_shell("ls /sys/class/net/ -R")
 	if shell_output ~= nil then
 		for line in shell_output:gmatch("[^\n]+") do
-			-- Check if the line contains the pattern 'wlanX-peerY'
+			--! Check if the line contains the pattern 'wlanX-peerY'
 			local apup = require("lime.mode.apup")
 			local iface = line:match("wlan(%d+)-"..apup.PEER_SUFFIX().."(%d+)$")
 			if iface then
-			-- Add the matched interface to the table
+			--! Add the matched interface to the table
 				table.insert(ifaces, line)
 			end
 		end
@@ -165,7 +188,7 @@ function wireless.configure()
 	local allRadios = wireless.scandevices()
 	for _,radio in pairs(allRadios) do
 		local radioName = radio[".name"]
-		local radioBand = wireless.is5Ghz(radioName) and '5ghz' or '2ghz'
+		local radioBand = wireless.getRadioBand(radioName) 
 		local radioOptions = specificRadios[radioName] or {}
 		local bandOptions = config.get_all(radioBand) or {}
 		local options = config.get_all("wifi")
@@ -202,7 +225,7 @@ function wireless.configure()
 				local args = {}
 				local mode = require("lime.mode."..modeName)
 
-				-- gather mode specific configs (eg ieee80211s_mcast_rate_5ghz)
+				--! gather mode specific configs (eg ieee80211s_mcast_rate_5ghz)
 				for key,value in pairs(options) do
 					local keyPrefix = utils.split(key, "_")[1]
 					local isGoodOption = ( (key ~= "modes")

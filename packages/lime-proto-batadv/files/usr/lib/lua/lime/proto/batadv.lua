@@ -18,21 +18,21 @@ function batadv.configure(args)
 
 	uci:set("network", "bat0", "interface")
 	uci:set("network", "bat0", "proto", "batadv")
-	-- BATMAN_V uses throughput rather than packet loss (as in BATMAN_IV) for evaluating
-	-- the quality of a link. Still, by default we continue selecting BATMAN_IV
+	--! BATMAN_V uses throughput rather than packet loss (as in BATMAN_IV) for evaluating
+	--! the quality of a link. Still, by default we continue selecting BATMAN_IV
 	local routing_algo = config.get("network", "batadv_routing_algo", "BATMAN_IV")
 	uci:set("network", "bat0", "routing_algo", routing_algo)
 	uci:set("network", "bat0", "bridge_loop_avoidance", "1")
 	uci:set("network", "bat0", "multicast_mode", "0")
-	-- by default, BATMAN-adv sends out one Originator Message (OGM) every second (orig_interval=1000)
-	-- in a network with static nodes, a larger interval between OGM packets can be used (e.g. 2000)
-	-- see https://github.com/libremesh/lime-packages/issues/1010
+	--! by default, BATMAN-adv sends out one Originator Message (OGM) every second (orig_interval=1000)
+	--! in a network with static nodes, a larger interval between OGM packets can be used (e.g. 2000)
+	--! see https://github.com/libremesh/lime-packages/issues/1010
 	local orig_interval = config.get("network", "batadv_orig_interval", "2000")
         uci:set("network", "bat0", "orig_interval", orig_interval)
 
-	-- if anygw enabled disable DAT that doesn't play well with it
-	-- and set gw_mode=client everywhere. Since there's no gw_mode=server, this makes bat0 never forward requests
-	-- so a rogue DHCP server doesn't affect whole network (DHCP requests are always answered locally)
+	--! if anygw enabled disable DAT that doesn't play well with it
+	--! and set gw_mode=client everywhere. Since there's no gw_mode=server, this makes bat0 never forward requests
+	--! so a rogue DHCP server doesn't affect whole network (DHCP requests are always answered locally)
 	for _,proto in pairs(config.get("network", "protocols")) do
 		if proto == "anygw" then
 			uci:set("network", "bat0", "distributed_arp_table", "0")
@@ -42,7 +42,7 @@ function batadv.configure(args)
 	uci:save("network")
 	lan.setup_interface("bat0", nil)
 
-	-- enable alfred on bat0 if installed
+	--! enable alfred on bat0 if installed
 	if utils.is_installed("alfred") then
 		uci:set("alfred", "alfred", "batmanif", "bat0")
 		uci:save("alfred")
@@ -133,8 +133,25 @@ function batadv.runOnDevice(linuxDev, args)
 --! TODO: as of today ubus silently fails to properly setting up a linux network
 --! device for batman ADV usage dinamycally work around it by using
 --! shell commands instead
-	network.createStatic(devName)
-	utils.unsafe_shell("batctl if add "..devName)
+	local id = utils.get_id(devName)
+	local original_mac = network.get_mac(devName) 
+	local vMacaddr = { }
+	-- Set first byte to 02 (locally administered unicast)
+	vMacaddr[1] = "02"
+	-- Use id[2] and id[3] from interface name for next bytes
+	vMacaddr[2] = id[2]
+	vMacaddr[3] = id[3]
+	-- Use last 3 bytes from main interface MAC
+	vMacaddr[4] = original_mac[4]
+	vMacaddr[5] = original_mac[5]
+	vMacaddr[6] = original_mac[6]
+	macaddr =  table.concat(vMacaddr, ":")
+
+	utils.unsafe_shell("ip link set dev "..devName.." address "..macaddr)
+	local ifnames = network.createStatic(devName)
+	utils.log("batadv created vlan "..devName.." with address:".. macaddr .." and static ".. ifnames)
+	--this seems not to be needed
+	--utils.unsafe_shell("batctl if add "..devName)
 end
 
 return batadv

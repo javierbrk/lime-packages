@@ -6,40 +6,47 @@
 
 local libuci = require("uci")
 
--- Function to get HTTP Date header using uclient-fetch
--- Returns the Date header string or nil on error
-local function get_http_date(url)
-	-- Build uclient-fetch command:
-	-- -q: quiet mode
-	-- -O -: output to stdout
-	-- --header-only: fetch only headers (like HTTP HEAD)
-	-- --timeout=5: 5 seconds timeout for send and receive
-	-- --max-redirect=0: don't follow redirects
-	local cmd = string.format(
-		"uclient-fetch -q -O - --header-only --timeout=5 --max-redirect=0 '%s' 2>&1",
-		url
-	)
-
-	local handle = io.popen(cmd)
-	if not handle then
-		return nil
-	end
-
-	local headers = handle:read("*a")
-	local success, exit_type, exit_code = handle:close()
-
-	-- Check if command executed successfully
-	-- handle:close() returns: true, "exit", code on success
-	if not success or exit_type ~= "exit" or exit_code ~= 0 then
-		return nil
-	end
-
-	-- Parse Date header from output
-	-- Look for "Date: " followed by the date string
-	local date = headers:match("Date: ([^\r\n]+)")
-	return date
+-- Function to get HTTP headers using netcat
+local function http_head_request(url)
+    -- Parse URL to extract host and path
+    local host = url:gsub("^https?://", ""):gsub("/.*", "")
+    local port = 80
+    
+    -- Check if port is specified in host
+    if host:match(":") then
+        host, port = host:match("([^:]+):(%d+)")
+        port = tonumber(port)
+    end
+    
+    -- Build netcat command with HTTP HEAD request
+    local cmd = string.format(
+        "printf 'HEAD / HTTP/1.1\\r\\nHost: %s\\r\\nConnection: close\\r\\n\\r\\n' | nc %s %d 2>/dev/null",
+        host, host, port
+    )
+    
+    local handle = io.popen(cmd)
+    if not handle then
+        return nil
+    end
+    
+    local response = handle:read("*a")
+    local success = handle:close()
+    
+    if not success or response == "" then
+        return nil
+    end
+    
+    -- Parse headers into a table
+    local headers = {}
+    for line in response:gmatch("[^\r\n]+") do
+        local key, value = line:match("^([^:]+):%s*(.+)$")
+        if key and value then
+            headers[key] = value
+        end
+    end
+    
+    return { headers = headers }
 end
-
 
 local config = libuci:cursor()
 local url = config:get("check-date", "http", "server")
@@ -52,20 +59,28 @@ restartSysntpd = (restartSysntpd == nil) or restartSysntpd
 config = nil
 
 local localCurrDate = assert(io.popen("date --utc -Iminutes", 'r'):read())
-local lFormat="(%d+)-(%d+)-(%d+)T(%d+):(%d+)UTC"
+local lFormat="(%d+)-(%d+)-(%d+)T(%d+):(%d+)"
 local lYear, lMonth, lDay, lHour, lMin = localCurrDate:match(lFormat)
 
--- Get HTTP Date header using uclient-fetch
-local success, date_header = pcall(get_http_date, url)
+local response = http_head_request(url)
 
-if not success or not date_header then
-	print(arg[0], "HTTP request failed", url)
-	os.exit(42)
+if not response then
+    print(arg[0], "HTTP request failed", url)
+    os.exit(42)
+elseif not response.headers or not response.headers['Date'] then
+    print(arg[0], "The server cannot be reached or Date header missing", url)
+    os.exit(43)
 end
 
-local s = date_header
+local s = response.headers['Date']
 local p="%a+, (%d+) (%a+) (%d+) (%d+):(%d+):(%d+) GMT"
 local day, month, year, hour, min, sec = s:match(p)
+
+if not day then
+    print(arg[0], "Could not parse Date header:", s)
+    os.exit(44)
+end
+
 local MON = { Jan="01", Feb="02", Mar="03", Apr="04", May="05", Jun="06", Jul="07", Aug="08", Sep="09", Oct="10", Nov="11", Dec="12"}
 month = MON[month]
 

@@ -9,8 +9,7 @@ define Package/$(PKG_NAME)
 	CATEGORY:=LibreMesh
 	MAINTAINER:=Gioacchino Mazzurco <gio@altermundi.net>
 	URL:=http://libremesh.org
-	DEPENDS:=+libuci-lua +lua \
-		+uclient-fetch
+	DEPENDS:=+libuci-lua +lua 
 	PKGARCH:=all
 endef
 

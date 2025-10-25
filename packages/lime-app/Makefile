@@ -10,8 +10,8 @@ PKG_VERSION:=0.2.29
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-v$(PKG_VERSION).tar.gz
-PKG_HASH:=ec7b9af0c75d3db58466ae5c977e202c425b40f03fa8182229e2cef4b5d72da4
-PKG_SOURCE_URL:=https://github.com/libremesh/lime-app/releases/download/v$(PKG_VERSION)
+PKG_HASH:=59c6d27dc88459588141306e27526473f2ea794d02e21d27c9271c441bcbcb0c
+PKG_SOURCE_URL:=https://github.com/Pablomonte/lime-app/releases/download/v$(PKG_VERSION)
 
 include $(INCLUDE_DIR)/package.mk
 

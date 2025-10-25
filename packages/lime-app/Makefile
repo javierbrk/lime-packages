@@ -6,12 +6,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=lime-app
-PKG_VERSION:=v0.2.27
-PKG_RELEASE:=2
+PKG_VERSION:=0.2.29
+PKG_RELEASE:=1
 
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_HASH:=c2b19242166d8cdce487d68622fcf1d2857053059a3f47b51417754161f8b57c
-PKG_SOURCE_URL:=https://github.com/Fede654/lime-app/releases/download/$(PKG_VERSION)
+PKG_SOURCE:=$(PKG_NAME)-v$(PKG_VERSION).tar.gz
+PKG_HASH:=59c6d27dc88459588141306e27526473f2ea794d02e21d27c9271c441bcbcb0c
+PKG_SOURCE_URL:=https://github.com/Pablomonte/lime-app/releases/download/v$(PKG_VERSION)
 
 include $(INCLUDE_DIR)/package.mk
 

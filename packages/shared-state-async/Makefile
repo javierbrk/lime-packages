@@ -39,7 +39,6 @@ define Package/shared-state-async
   TITLE+= (dynamic linking)
   DEPENDS:=+libstdcpp
   VARIANT:=dynamic
-  CONFLICTS:=shared-state-async-static
 endef
 
 define Package/shared-state-async-static
@@ -47,7 +46,6 @@ define Package/shared-state-async-static
   TITLE+= (static linking)
   VARIANT:=static
   PROVIDES:=shared-state-async
-  CONFLICTS:=shared-state-async
 endef
 
 define Package/shared-state-async/description

@@ -49,13 +49,10 @@ function utils.enable_logging()
 end
 
 function utils.split(string, sep)
+	--! Calling split without a separator is symptomatic of a bug in the caller,
+	--! so fail fast instead of silently guessing a default separator.
+	assert(sep ~= nil and sep ~= '', "utils.split: separator must be a non-empty string")
 	local ret = {}
-    if sep == nil or sep == '' then
-        sep = '%s' --! default to whitespace
-    end
-    if string == nil or string == '' then
-        return ret
-    end
 	for token in string.gmatch(string, "[^"..sep.."]+") do table.insert(ret, token) end
 	return ret
 end

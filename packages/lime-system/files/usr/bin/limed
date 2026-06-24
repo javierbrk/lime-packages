@@ -48,25 +48,18 @@ local peerSubscriber = {
 
 		utils.log("peerSubscriber type: %s data.ifname: %s ", nType, nData.ifname)
 
-		network.createStatic(nData.ifname)
---! interfaces should exist, but just in case we need to check, 
---! to avoid 
---! [2025-07-31 20:06:09] [limed] ip: SIOCGIFFLAGS: No such device
---! [2025-07-31 20:06:10] [limed] ip: can't find device 'wlan1-peer2'
---! [2025-07-31 20:06:10] [limed] lime.network.runProtocols(wlan1-peer2, ...)
---! [2025-07-31 20:06:10] [limed] lime.proto.batadv.runOnDevice(wlan1-peer2, ...)
---! [2025-07-31 20:06:11] [limed] lime.network.createVlan(wlan1-peer2, ...)
---! [2025-07-31 20:06:11] [limed]           vid      =      29
---! [2025-07-31 20:06:11] [limed]           type     =      8021ad
---! [2025-07-31 20:06:11] [limed]           name     =      wlan1-peer2_29
---! [2025-07-31 20:06:11] [limed]           ifname   =      wlan1-peer2
---! [2025-07-31 20:06:12] [limed] ip: can't find device 'wlan1-peer2'
---! [2025-07-31 20:06:12] [ubus] { "ubus.object.add":
---{"id":-1478746778,"path":"network.interface.lm_net_wlan1-peer2_batadv"} }
+		--! During a "wifi down" / "wifi up" cycle the APuP peer interfaces are not
+		--! torn down in sync with the rest of the radio, so limed can be notified
+		--! about a peer whose linux device no longer exists. This is an expected
+		--! transient (the peer reappears once it re-associates), not an error, so
+		--! skip it before touching it instead of letting the downstream "ip" calls
+		--! fail with "No such device".
 		if not network.device_exists(nData.ifname) then
-			utils.log("Device does not exist, skipping:", nData.ifname)
+			utils.log("apup peer %s not present (yet), skipping", nData.ifname)
 			return
 		end
+
+		network.createStatic(nData.ifname)
 		network.runProtocols(nData.ifname)
 	end
 }

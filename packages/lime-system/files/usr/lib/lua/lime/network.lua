@@ -29,14 +29,12 @@ network.protoParamsSeparator=":"
 network.protoVlanSeparator="_"
 network.limeIfNamePrefix="lm_net_"
 
---! Retuns the mac address of the interface or nill if it does not exist
+--! Returns the MAC address of the interface as a table of 6 hex byte strings.
+--! Requesting the MAC of a non-existent interface is symptomatic of a bug in
+--! the caller, so fail fast instead of propagating a nil value upstream.
 function network.get_mac(ifname)
 	local _, macaddr = next(network.get_own_macs(ifname))
-	--! this is to avoid the error:
-	--! ...ackages/lime-system/files/usr/lib/lua/lime/utils.lua:53: attempt to index local 'string' (a nil value)
-	if macaddr == nil then
-		return nil
-	end
+	assert(macaddr, "network.get_mac: interface '"..tostring(ifname).."' does not exist")
 	return utils.split(macaddr, ":")
 end
 
@@ -603,12 +601,11 @@ function network.createStatic(linuxBaseIfname)
 	return ifaceConf.name
 end
 
---! Check if a device exists in the system
+--! Check whether a network device currently exists in the system. Uses the same
+--! /sys/class/net lookup as network.assert_interface_exists / get_own_macs instead
+--! of shelling out, since this is on the hot path of every APuP peer notification.
 function network.device_exists(dev)
-    local handle = io.popen("ip link show " .. dev .. " 2>/dev/null")
-    local result = handle:read("*a")
-    handle:close()
-    return result ~= nil and result ~= ""
+	return fs.lstat("/sys/class/net/"..dev) ~= nil
 end
 
 --! Create a vlan at runtime via ubus

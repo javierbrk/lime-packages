@@ -130,6 +130,36 @@ function utils.load_lua_file_as_function(filename)
     return loadstring(content, filename)
 end
 
+function utils.stub_sysfs_phys(phy_map)
+    local fs = require 'nixio.fs'
+    local original_glob = fs.glob
+    local names = {}
+    for name in pairs(phy_map) do table.insert(names, name) end
+    table.sort(names)
+
+    stub(fs, "glob", function(pattern)
+        if pattern ~= "/sys/class/ieee80211/*" then
+            return original_glob(pattern)
+        end
+        local index = 0
+        return function()
+            index = index + 1
+            if names[index] then
+                return "/sys/class/ieee80211/" .. names[index]
+            end
+        end, #names
+    end)
+
+    stub(fs, "realpath", function(path)
+        return phy_map[path:match("([^/]+)$")]
+    end)
+
+    return function()
+        fs.glob:revert()
+        fs.realpath:revert()
+    end
+end
+
 -- Use this function to test libexec/rpcd "json API" calls
 function utils.rpcd_call(f, script_args, call_args)
     local response = nil

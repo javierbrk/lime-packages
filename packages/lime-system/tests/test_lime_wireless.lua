@@ -211,6 +211,119 @@ describe('LiMe Wireless tests #wireless', function()
         system.get_hostname:revert()
     end)
 
+    local stub_sysfs_phys = test_utils.stub_sysfs_phys
+
+    it('test scandevices() detects radio behind a platform bus pcie controller', function()
+        local revert = stub_sysfs_phys({
+            phy0 = '/sys/devices/platform/1e140000.pcie/pci0000:00/0000:00:00.0/0000:01:00.0/ieee80211/phy0',
+            phy1 = '/sys/devices/platform/1e140000.pcie/pci0000:00/0000:00:01.0/0000:02:00.0/ieee80211/phy1',
+        })
+
+        uci:set('wireless', 'radio0', 'wifi-device')
+        uci:set('wireless', 'radio0', 'band', '5g')
+        uci:set('wireless', 'radio0', 'path', '1e140000.pcie/pci0000:00/0000:00:00.0/0000:01:00.0')
+        uci:set('wireless', 'radio1', 'wifi-device')
+        uci:set('wireless', 'radio1', 'band', '5g')
+        uci:set('wireless', 'radio1', 'path', '1e140000.pcie/pci0000:00/0000:00:01.0/0000:02:00.0')
+        uci:commit('wireless')
+
+        local devices = wireless.scandevices()
+        assert.is.equal(2, utils.tableLength(devices))
+        assert.is.equal('radio0', devices['radio0']['.name'])
+        assert.is.equal('radio1', devices['radio1']['.name'])
+
+        revert()
+    end)
+
+    it('test scandevices() detects radio on a plain pci path', function()
+        local revert = stub_sysfs_phys({
+            phy0 = '/sys/devices/platform/ahb/18100000.wmac/ieee80211/phy0',
+            phy1 = '/sys/devices/pci0000:00/0000:00:00.0/ieee80211/phy1',
+        })
+
+        uci:set('wireless', 'radio0', 'wifi-device')
+        uci:set('wireless', 'radio0', 'band', '2g')
+        uci:set('wireless', 'radio0', 'path', 'platform/ahb/18100000.wmac')
+        uci:set('wireless', 'radio1', 'wifi-device')
+        uci:set('wireless', 'radio1', 'band', '5g')
+        uci:set('wireless', 'radio1', 'path', 'pci0000:00/0000:00:00.0')
+        uci:commit('wireless')
+
+        local devices = wireless.scandevices()
+        assert.is.equal(2, utils.tableLength(devices))
+
+        revert()
+    end)
+
+    it('test scandevices() skips radio with missing hardware', function()
+        local revert = stub_sysfs_phys({
+            phy0 = '/sys/devices/pci0000:00/0000:00:00.0/ieee80211/phy0',
+        })
+
+        uci:set('wireless', 'radio0', 'wifi-device')
+        uci:set('wireless', 'radio0', 'band', '5g')
+        uci:set('wireless', 'radio0', 'path', 'pci0000:00/0000:00:00.0')
+        uci:set('wireless', 'radio1', 'wifi-device')
+        uci:set('wireless', 'radio1', 'band', '5g')
+        uci:set('wireless', 'radio1', 'path', 'pci0000:01/0000:01:00.0')
+        uci:commit('wireless')
+
+        local devices = wireless.scandevices()
+        assert.is.equal(1, utils.tableLength(devices))
+        assert.is_nil(devices['radio1'])
+
+        revert()
+    end)
+
+    it('test scandevices() keeps radio without path', function()
+        local revert = stub_sysfs_phys({})
+
+        uci:set('wireless', 'radio0', 'wifi-device')
+        uci:set('wireless', 'radio0', 'band', '5g')
+        uci:commit('wireless')
+
+        local devices = wireless.scandevices()
+        assert.is.equal(1, utils.tableLength(devices))
+
+        revert()
+    end)
+
+    it('test scandevices() detects radio with a phy index suffix', function()
+        local revert = stub_sysfs_phys({
+            phy0 = '/sys/devices/platform/18000000.wifi/ieee80211/phy0',
+            phy1 = '/sys/devices/platform/18000000.wifi/ieee80211/phy1',
+        })
+
+        uci:set('wireless', 'radio0', 'wifi-device')
+        uci:set('wireless', 'radio0', 'band', '2g')
+        uci:set('wireless', 'radio0', 'path', 'platform/18000000.wifi')
+        uci:set('wireless', 'radio1', 'wifi-device')
+        uci:set('wireless', 'radio1', 'band', '5g')
+        uci:set('wireless', 'radio1', 'path', 'platform/18000000.wifi+1')
+        uci:commit('wireless')
+
+        local devices = wireless.scandevices()
+        assert.is.equal(2, utils.tableLength(devices))
+
+        revert()
+    end)
+
+    it('test scandevices() does not match the parent bridge of a radio', function()
+        local revert = stub_sysfs_phys({
+            phy0 = '/sys/devices/platform/1e140000.pcie/pci0000:00/0000:00:00.0/0000:01:00.0/ieee80211/phy0',
+        })
+
+        uci:set('wireless', 'radio0', 'wifi-device')
+        uci:set('wireless', 'radio0', 'band', '5g')
+        uci:set('wireless', 'radio0', 'path', '1e140000.pcie/pci0000:00/0000:00:00.0')
+        uci:commit('wireless')
+
+        local devices = wireless.scandevices()
+        assert.is.equal(0, utils.tableLength(devices))
+
+        revert()
+    end)
+
     before_each('', function()
         uci = test_utils.setup_test_uci()
     end)

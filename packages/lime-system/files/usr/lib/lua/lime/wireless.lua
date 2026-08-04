@@ -27,6 +27,17 @@ function wireless.clean()
 	uci:save("wireless")
 end
 
+function wireless.is_radio_present(path)
+	local device_path = path:gsub("%+%d+$", ""):gsub("/+$", "")
+	for phy in fs.glob("/sys/class/ieee80211/*") do
+		local resolved = fs.realpath(phy)
+		if resolved and resolved:find(device_path.."/ieee80211/", 1, true) then
+			return true
+		end
+	end
+	return false
+end
+
 function wireless.scandevices()
 	local devices = {}
 	local uci = config.get_uci_cursor()
@@ -34,8 +45,7 @@ function wireless.scandevices()
 	uci:foreach("wireless", "wifi-device", function(dev)
 		local path = dev.path
 		if path then
-			local _, numberOfMatches = fs.glob("/sys/devices/"..path.."/ieee80211/phy*")
-			if numberOfMatches > 0 then
+			if wireless.is_radio_present(path) then
 				devices[dev[".name"]] = dev
 			else
 				utils.log("Skipping radio "..dev[".name"].." - hardware not found")

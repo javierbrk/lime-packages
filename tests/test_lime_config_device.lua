@@ -39,6 +39,12 @@ describe('LiMe Config tests', function()
         stub(utils, "getBoardAsTable", function () return librerouter_board end)
         table.insert(hw_detection.search_paths, 'packages/*hwd*/files/usr/lib/lua/lime/hwd/*.lua')
 
+        local revert_sysfs_phys = test_utils.stub_sysfs_phys({
+            phy0 = '/sys/devices/platform/qca955x_wmac/ieee80211/phy0',
+            phy1 = '/sys/devices/pci0000:00/0000:00:00.0/ieee80211/phy1',
+            phy2 = '/sys/devices/pci0000:01/0000:01:00.0/ieee80211/phy2',
+        })
+
         config.main()
 
         assert.is.equal('wan', config.get('lm_hwd_openwrt_wan', 'linux_name'))
@@ -72,6 +78,8 @@ describe('LiMe Config tests', function()
 		assert.is.equal('1000', uci:get('wireless', 'radio0', 'distance'))
 		assert.is.equal('10000', uci:get('wireless', 'radio1', 'distance'))
 		assert.is.equal('10000', uci:get('wireless', 'radio2', 'distance'))
+
+		revert_sysfs_phys()
     end)
 
 	setup('', function()

@@ -34,7 +34,8 @@ function wireless.scandevices()
 	uci:foreach("wireless", "wifi-device", function(dev)
 		local path = dev.path
 		if path then
-			local _, numberOfMatches = fs.glob("/sys/devices/"..path.."/ieee80211/phy*")
+			path = path:match("^([^%+]+)")
+			local _, numberOfMatches = fs.glob("/sys/devices/*/"..path.."/ieee80211/phy*")
 			if numberOfMatches > 0 then
 				devices[dev[".name"]] = dev
 			else
